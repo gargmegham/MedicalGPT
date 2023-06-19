@@ -3,16 +3,16 @@ import logging
 import traceback
 from datetime import datetime
 
-import medicalgpt
+import gpt
 import telegram
+from bot import user_semaphores, user_tasks
 from mysql import MySQL
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
-from utils import edited_message_handle, is_previous_message_not_answered_yet
 
 import config
-from bot import user_semaphores, user_tasks
+from utils import edited_message_handle, is_previous_message_not_answered_yet
 
 # setup
 mysql_db = MySQL()
@@ -37,13 +37,12 @@ async def message_handle_fn(
         ) > 0:
             mysql_db.start_new_dialog(user_id)
             await update.message.reply_text(
-                f"Starting new dialog due to timeout (<b>{medicalgpt.CHAT_MODES['default']['name']}</b> mode) ✅",
+                f"Starting new dialog due to timeout (<b>{gpt.CHAT_MODES['default']['name']}</b> mode) ✅",
                 parse_mode=ParseMode.HTML,
             )
     mysql_db.set_attribute(user_id, "last_interaction", datetime.now())
     # in case of CancelledError
     n_input_tokens, n_output_tokens = 0, 0
-    current_model = mysql_db.get_attribute(user_id, "current_model")
     try:
         # send placeholder message to user
         placeholder_message = await update.message.reply_text(
@@ -58,9 +57,9 @@ async def message_handle_fn(
             else []
         )
         parse_mode = {"html": ParseMode.HTML, "markdown": ParseMode.MARKDOWN}[
-            medicalgpt.CHAT_MODES["default"]["parse_mode"]
+            gpt.CHAT_MODES["default"]["parse_mode"]
         ]
-        gpt_instance = medicalgpt.MedicalGPT()
+        gpt_instance = gpt.MedicalGPT()
         gen = gpt_instance.send_message_stream(
             _message,
             dialog_messages=dialog_messages,
@@ -109,11 +108,11 @@ async def message_handle_fn(
             dialog_id=None,
         )
         mysql_db.update_n_used_tokens(
-            user_id, current_model, n_input_tokens, n_output_tokens
+            user_id, config.gpt_model, n_input_tokens, n_output_tokens
         )
     except asyncio.CancelledError:
         mysql_db.update_n_used_tokens(
-            user_id, current_model, n_input_tokens, n_output_tokens
+            user_id, config.gpt_model, n_input_tokens, n_output_tokens
         )
         raise
 

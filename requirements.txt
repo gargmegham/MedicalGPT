@@ -39,3 +39,4 @@ tqdm==4.65.0
 typing_extensions==4.5.0
 urllib3==1.26.15
 yarl==1.8.2
+sqlalchemy_seeder==0.3.0

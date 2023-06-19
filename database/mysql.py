@@ -1,5 +1,4 @@
 import re
-import uuid
 from typing import Optional
 
 from sqlalchemy import create_engine
@@ -40,39 +39,9 @@ class MySQL:
             user = session.query(model).filter_by(user_id=str(user_id)).first()
             if raise_exception and user is None:
                 raise Exception(f"User {user_id} does not exist in the database")
+        finally:
             session.close()
             return user is not None
-        except:
-            session.close()
-
-    def update_n_used_tokens(
-        self, user_id: int, model: str, n_input_tokens: int, n_output_tokens: int
-    ):
-        # common function for updating n_used_tokens
-        n_used_tokens_dict = self.get_attribute(user_id, "n_used_tokens")
-        if model in n_used_tokens_dict:
-            n_used_tokens_dict[model]["n_input_tokens"] += n_input_tokens
-            n_used_tokens_dict[model]["n_output_tokens"] += n_output_tokens
-        else:
-            n_used_tokens_dict[model] = {
-                "n_input_tokens": n_input_tokens,
-                "n_output_tokens": n_output_tokens,
-            }
-        self.set_attribute(user_id, "n_used_tokens", n_used_tokens_dict, User)
-
-    def start_new_dialog(self, user_id: int):
-        dialog_id = str(uuid.uuid4())
-        self.add_instance(
-            user_id,
-            Dialog,
-            {
-                "uid": dialog_id,
-                "chat_mode": self.get_attribute(user_id, "current_chat_mode"),
-                "model": self.get_attribute(user_id, "current_model"),
-            },
-        )
-        self.set_attribute(user_id, "current_dialog_id", dialog_id, User)
-        return dialog_id
 
     def get_dialog_messages(self, user_id: int, dialog_id: Optional[str] = None):
         if dialog_id is None:
@@ -104,12 +73,11 @@ class MySQL:
                 .filter_by(user_id=str(user_id), **extra_filters)
                 .first()
             )
+        finally:
             session.close()
             if instance is None:
                 return None
             return getattr(instance, attribute)
-        except:
-            session.close()
 
     def set_attribute(
         self,
@@ -155,20 +123,18 @@ class MySQL:
                 instances = instances.order_by(model.id.desc()).first()
             else:
                 instances = instances.all()
+        finally:
             session.close()
             return instances
-        except:
-            session.close()
 
     def add_instance(self, user_id: int, model: Base, data: dict):
         try:
             session = self.Session()
             instance = session.add(model(user_id=str(user_id), **data))
             session.commit()
+        finally:
             session.close()
             return instance
-        except:
-            session.close()
 
     def remove_instance(self, user_id: int, model: Base, extra_filters: dict = {}):
         try:
@@ -176,8 +142,8 @@ class MySQL:
             session.query(model).filter_by(
                 user_id=str(user_id), **extra_filters
             ).delete()
-            session.commit()
         finally:
+            session.commit()
             session.close()
 
     def prepare_patient_history(self, user_id: int, disease_id: int = None) -> list:

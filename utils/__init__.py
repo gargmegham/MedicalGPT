@@ -2,12 +2,13 @@ import asyncio
 import logging
 
 import mysql
+from bot import user_semaphores
 from tables import User as UserTable
 from telegram import Update, User
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-from bot import user_semaphores
+import config
 
 # setup
 mysql_db = mysql.MySQL()
@@ -34,13 +35,11 @@ async def register_user_if_not_exists(
         mysql_db.start_new_dialog(user.id)
     if user.id not in user_semaphores:
         user_semaphores[user.id] = asyncio.Semaphore(1)
-    if mysql_db.get_attribute(user.id, "current_model") is None:
-        mysql_db.set_attribute(user.id, "current_model", "gpt-4")
     # back compatibility for n_used_tokens field
     n_used_tokens = mysql_db.get_attribute(user.id, "n_used_tokens")
     if isinstance(n_used_tokens, int):
         new_n_used_tokens = {
-            "gpt-4": {"n_input_tokens": 0, "n_output_tokens": n_used_tokens}
+            config.gpt_model: {"n_input_tokens": 0, "n_output_tokens": n_used_tokens}
         }
         mysql_db.set_attribute(user.id, "n_used_tokens", new_n_used_tokens)
     if reply_text != "":
