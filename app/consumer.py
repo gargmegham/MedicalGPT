@@ -1,4 +1,3 @@
-from app.filters import get_user_filter
 from telegram.ext import (
     AIORateLimiter,
     ApplicationBuilder,
@@ -8,10 +7,10 @@ from telegram.ext import (
 )
 
 from app import config
-import handlers
-
-user_semaphores = {}
-user_tasks = {}
+from app.filters import get_user_filter
+from handlers.command import start_handler
+from handlers.error import error_handler
+from handlers.message import message_handler
 
 
 def consumer() -> None:
@@ -23,17 +22,11 @@ def consumer() -> None:
         .build()
     )
     user_filter = get_user_filter()
+    application.add_handler(CommandHandler("start", start_handler, filters=user_filter))
     application.add_handler(
-        CommandHandler(
-            "start", handlers.commands.CommandHandler.start_handle, filters=user_filter
-        )
-    )
-    application.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND & user_filter, handlers.message_handler
-        )
+        MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter, message_handler)
     )
     # add error handler
-    application.add_error_handler(handlers.error_handler)
+    application.add_error_handler(error_handler)
     # start the bot
     application.run_polling()

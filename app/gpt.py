@@ -1,11 +1,9 @@
 import openai
 import tiktoken
-from mysql import MySQL
 
-import config
+from app import config
 
 openai.api_key = config.openai_api_key
-mysql_db = MySQL()
 
 
 CHAT_MODES = config.chat_modes
@@ -25,19 +23,11 @@ class BaseMedicalGPT:
         message,
         dialog_messages,
         prompt=CHAT_MODES["default"]["prompt_start"],
-        user_id: int = None,
-        disease_id: int = None,
     ):
         messages = [{"role": "system", "content": prompt}]
-        patient_details_messages = []
-        if user_id is not None:
-            patient_details_messages = list(
-                mysql_db.prepare_patient_history(user_id, disease_id=disease_id)
-            )
         for dialog_message in dialog_messages:
             messages.append({"role": "user", "content": dialog_message["user"]})
             messages.append({"role": "assistant", "content": dialog_message["bot"]})
-        messages.extend(patient_details_messages)
         messages.append({"role": "user", "content": message})
         return messages
 

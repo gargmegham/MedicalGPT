@@ -3,19 +3,16 @@ import logging
 import traceback
 from datetime import datetime
 
-import gpt
 import telegram
-from bot import user_semaphores, user_tasks
-from mysql import MySQL
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-import config
+from app import config, gpt
+from app.globals import DB
+from bot import user_semaphores, user_tasks
 from utils import edited_message_handle, is_previous_message_not_answered_yet
 
-# setup
-mysql_db = MySQL()
 logger = logging.getLogger(__name__)
 
 
@@ -31,16 +28,16 @@ async def message_handle_fn(
     # new dialog timeout
     if use_new_dialog_timeout:
         if (
-            datetime.now() - mysql_db.get_attribute(user_id, "last_interaction")
+            datetime.now() - DB.get_attribute(user_id, "last_interaction")
         ).seconds > config.new_dialog_timeout and len(
-            mysql_db.get_dialog_messages(user_id)
+            DB.get_dialog_messages(user_id)
         ) > 0:
-            mysql_db.start_new_dialog(user_id)
+            DB.start_new_dialog(user_id)
             await update.message.reply_text(
                 f"Starting new dialog due to timeout (<b>{gpt.CHAT_MODES['default']['name']}</b> mode) ✅",
                 parse_mode=ParseMode.HTML,
             )
-    mysql_db.set_attribute(user_id, "last_interaction", datetime.now())
+    DB.set_attribute(user_id, "last_interaction", datetime.now())
     # in case of CancelledError
     n_input_tokens, n_output_tokens = 0, 0
     try:
@@ -52,7 +49,7 @@ async def message_handle_fn(
         await update.message.chat.send_action(action="typing")
         _message = message or update.message.text
         dialog_messages = (
-            mysql_db.get_dialog_messages(user_id, dialog_id=None)
+            DB.get_dialog_messages(user_id, dialog_id=None)
             if pass_dialog_messages
             else []
         )
@@ -101,17 +98,16 @@ async def message_handle_fn(
             "user": _message,
             "bot": answer,
         }
-        mysql_db.set_dialog_messages(
+        DB.set_dialog_messages(
             user_id,
-            mysql_db.get_dialog_messages(user_id, dialog_id=None)
-            + [new_dialog_message],
+            DB.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
             dialog_id=None,
         )
-        mysql_db.update_n_used_tokens(
+        DB.update_n_used_tokens(
             user_id, config.gpt_model, n_input_tokens, n_output_tokens
         )
     except asyncio.CancelledError:
-        mysql_db.update_n_used_tokens(
+        DB.update_n_used_tokens(
             user_id, config.gpt_model, n_input_tokens, n_output_tokens
         )
         raise

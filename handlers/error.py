@@ -8,11 +8,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-import config
-from handlers.commands import CommandHandler
-from handlers.disease import disease, disease_start_handler
-from handlers.message import message_handler
-from handlers.registeration import registeration_handler
+from app import config
 
 logger = logging.getLogger(__name__)
 

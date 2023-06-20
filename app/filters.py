@@ -1,9 +1,6 @@
-from mysql import MySQL
 from telegram.ext import filters
 
-import config
-
-mysql_db = MySQL()
+from app import config
 
 
 def get_user_filter():
