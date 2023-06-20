@@ -17,7 +17,7 @@ OPENAI_COMPLETION_OPTIONS = {
 }
 
 
-class BaseMedicalGPT:
+class MedicalGPT:
     def _generate_prompt_messages(
         self,
         message,
@@ -50,8 +50,6 @@ class BaseMedicalGPT:
         n_output_tokens = 1 + len(encoding.encode(answer))
         return n_input_tokens, n_output_tokens
 
-
-class MedicalGPT(BaseMedicalGPT):
     async def send_message_stream(
         self, message, dialog_messages=[], user_id: int = None, disease_id: int = None
     ):
@@ -98,28 +96,3 @@ class MedicalGPT(BaseMedicalGPT):
             n_input_tokens,
             n_output_tokens,
         ), n_first_dialog_messages_removed  # sending final answer
-
-
-class Filter:
-    def medical_condition_message_filter(self, message, condition) -> bool:
-        """
-        Given a message from the user, check if user has this medical condition
-        :return: True if user has this medical condition, False otherwise
-        """
-        condition = condition.split("_")
-        condition = " ".join(condition)
-        response = openai.ChatCompletion.create(
-            model=config.gpt_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"Question: is following sentence indicating {condition}?\nSentence: {message}.\nIf you're uncertain, respond with 'no'.\nAnswer: yes/no",
-                },
-            ],
-            stream=False,
-            **OPENAI_COMPLETION_OPTIONS,
-        )
-        response = str(response.choices[0].message.content.strip())
-        if "yes" in response.lower():
-            return True
-        return False

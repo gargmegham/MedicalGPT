@@ -24,6 +24,7 @@ class User(Base):
     first_name = Column(Text, default="")
     last_name = Column(Text, default="")
     last_interaction = Column(DateTime, default=datetime.utcnow)
+    current_dialog_id = Column(Text, nullable=True, default=None)
     first_seen = Column(DateTime, default=datetime.utcnow)
     timestamp = Column(DateTime, default=datetime.utcnow)
 

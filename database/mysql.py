@@ -1,26 +1,9 @@
-import re
-from typing import Optional
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import config
 from database.models import Base
 from utils.singleton import SingletonMetaClass
-
-# from tables import (
-#     Allergy,
-#     Base,
-#     Dialog,
-#     DiseaseAnswer,
-#     DiseaseInstructions,
-#     DiseaseQuestion,
-#     MedicalCondition,
-#     Medication,
-#     Medicine,
-#     Surgery,
-#     User,
-# )
 
 
 class MySQL(SingletonMetaClass):
@@ -34,23 +17,59 @@ class MySQL(SingletonMetaClass):
     def close(self):
         self.engine.dispose()
 
-    # def check_if_object_exists(
-    #     self, user_id: int, raise_exception: bool = False, model: Base = User
-    # ) -> bool:
-    #     try:
-    #         session = self.Session()
-    #         user = session.query(model).filter_by(user_id=str(user_id)).first()
-    #         if raise_exception and user is None:
-    #             raise Exception(f"User {user_id} does not exist in the database")
-    #     finally:
-    #         session.close()
-    #         return user is not None
+    def get_attribute(self, attribute: str, model: Base, filters: dict = {}):
+        try:
+            session = self.Session()
+            instance = session.query(model).filter_by(**filters).first()
+        finally:
+            session.close()
+            if instance is None:
+                return None
+            return getattr(instance, attribute)
+
+    def set_attribute(
+        self,
+        model: Base,
+        attribute: str,
+        value,
+        filters: dict = {},
+    ):
+        try:
+            session = self.Session()
+            session.query(model).filter_by(**filters).update({attribute: value})
+            session.commit()
+        finally:
+            session.close()
+
+    def check_if_object_exists(
+        self,
+        model: Base,
+        filters: dict = {},
+        raise_exception: bool = False,
+    ) -> bool:
+        try:
+            session = self.Session()
+            obj = session.query(model).filter_by(**filters).first()
+            if raise_exception and obj is None:
+                raise Exception(f"Object does not exist in the database")
+        finally:
+            session.close()
+            return obj is not None
+
+    def add_instance(self, model: Base, data: dict):
+        try:
+            session = self.Session()
+            instance = session.add(model(**data))
+            session.commit()
+        finally:
+            session.close()
+            return instance
 
     # def get_dialog_messages(self, user_id: int, dialog_id: Optional[str] = None):
     #     if dialog_id is None:
     #         dialog_id = self.get_attribute(user_id, "current_dialog_id")
     #     return self.get_attribute(
-    #         user_id, "messages", model=Dialog, extra_filters={"uid": dialog_id}
+    #         user_id, "messages", model=Dialog, filters={"uid": dialog_id}
     #     )
 
     # def set_dialog_messages(
@@ -63,48 +82,15 @@ class MySQL(SingletonMetaClass):
     #         "messages",
     #         dialog_messages,
     #         model=Dialog,
-    #         extra_filters={"uid": dialog_id},
+    #         filters={"uid": dialog_id},
     #     )
-
-    # def get_attribute(
-    #     self, user_id: int, attribute: str, model: Base = User, extra_filters: dict = {}
-    # ):
-    #     try:
-    #         session = self.Session()
-    #         instance = (
-    #             session.query(model)
-    #             .filter_by(user_id=str(user_id), **extra_filters)
-    #             .first()
-    #         )
-    #     finally:
-    #         session.close()
-    #         if instance is None:
-    #             return None
-    #         return getattr(instance, attribute)
-
-    # def set_attribute(
-    #     self,
-    #     user_id: int,
-    #     attribute: str,
-    #     value,
-    #     model: Base = User,
-    #     extra_filters: dict = {},
-    # ):
-    #     try:
-    #         session = self.Session()
-    #         session.query(model).filter_by(
-    #             user_id=str(user_id), **extra_filters
-    #         ).update({attribute: value})
-    #         session.commit()
-    #     finally:
-    #         session.close()
 
     # def get_instances(
     #     self,
     #     user_id: int,
     #     model: Base,
     #     find_first: bool = False,
-    #     extra_filters: dict = None,
+    #     filters: dict = None,
     #     id_greater_than: int = None,
     #     find_last: bool = False,
     # ):
@@ -116,8 +102,8 @@ class MySQL(SingletonMetaClass):
     #         instances = session.query(model)
     #         if user_id is not None:
     #             instances = instances.filter_by(user_id=str(user_id))
-    #         if extra_filters is not None:
-    #             instances = instances.filter_by(**extra_filters)
+    #         if filters is not None:
+    #             instances = instances.filter_by(**filters)
     #         if id_greater_than is not None:
     #             instances = instances.filter(model.id > id_greater_than)
     #         if find_first:
@@ -130,20 +116,11 @@ class MySQL(SingletonMetaClass):
     #         session.close()
     #         return instances
 
-    # def add_instance(self, user_id: int, model: Base, data: dict):
-    #     try:
-    #         session = self.Session()
-    #         instance = session.add(model(user_id=str(user_id), **data))
-    #         session.commit()
-    #     finally:
-    #         session.close()
-    #         return instance
-
-    # def remove_instance(self, user_id: int, model: Base, extra_filters: dict = {}):
+    # def remove_instance(self, user_id: int, model: Base, filters: dict = {}):
     #     try:
     #         session = self.Session()
     #         session.query(model).filter_by(
-    #             user_id=str(user_id), **extra_filters
+    #             user_id=str(user_id), **filters
     #         ).delete()
     #     finally:
     #         session.commit()
@@ -159,7 +136,7 @@ class MySQL(SingletonMetaClass):
     #                 for instruction in self.get_instances(
     #                     None,
     #                     DiseaseInstructions,
-    #                     extra_filters={"disease_id": disease_id},
+    #                     filters={"disease_id": disease_id},
     #                 )
     #             ]
     #         )
@@ -261,13 +238,13 @@ class MySQL(SingletonMetaClass):
     #     )
     #     if disease_id is not None:
     #         disease_specific_questions = self.get_instances(
-    #             None, DiseaseQuestion, extra_filters={"disease_id": disease_id}
+    #             None, DiseaseQuestion, filters={"disease_id": disease_id}
     #         )
     #         for disease_specific_question in disease_specific_questions:
     #             answer = self.get_instances(
     #                 user_id,
     #                 DiseaseAnswer,
-    #                 extra_filters={"question_id": disease_specific_question.id},
+    #                 filters={"question_id": disease_specific_question.id},
     #                 find_last=True,
     #             )
     #             if answer is not None:
@@ -309,7 +286,7 @@ class MySQL(SingletonMetaClass):
 
     #     blocked_medicine_types = []
     #     disease_answes = self.get_instances(
-    #         user_id, DiseaseAnswer, extra_filters={"disease_id": disease_id}
+    #         user_id, DiseaseAnswer, filters={"disease_id": disease_id}
     #     )
     #     qna_prescription = []
     #     additional_instructions = []
@@ -317,7 +294,7 @@ class MySQL(SingletonMetaClass):
     #         disease_question = self.get_instances(
     #             None,
     #             DiseaseQuestion,
-    #             extra_filters={"id": disease_answer.question_id},
+    #             filters={"id": disease_answer.question_id},
     #             find_first=True,
     #         )
     #         if disease_question.value is None:
@@ -365,7 +342,7 @@ class MySQL(SingletonMetaClass):
     #                 pass
     #     allowed_medicines = {}
     #     medicines = self.get_instances(
-    #         None, Medicine, extra_filters={"disease_id": disease_id}
+    #         None, Medicine, filters={"disease_id": disease_id}
     #     )
     #     user = self.get_instances(user_id, User, find_first=True)
     #     try:

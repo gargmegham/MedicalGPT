@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import traceback
 from datetime import datetime
 
@@ -9,11 +8,8 @@ from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
 from app import config, gpt
-from app.globals import DB
-from bot import user_semaphores, user_tasks
+from app.globals import DB, USER_SEMAPHORES, USER_TASKS
 from utils import edited_message_handle, is_previous_message_not_answered_yet
-
-logger = logging.getLogger(__name__)
 
 
 async def message_handle_fn(
@@ -114,7 +110,6 @@ async def message_handle_fn(
 
     except Exception as e:
         error_text = f"Something went wrong during completion. Reason: {e}\n\nTraceback: {traceback.format_exc()}"
-        logger.error(error_text)
         await update.message.reply_text(error_text)
         return
 
@@ -136,12 +131,12 @@ async def message_handler(
 ):
     # check if message is edited
     if update.edited_message is not None:
-        await edited_message_handle(update, context)
+        await edited_message_handle(update)
         return
-    if await is_previous_message_not_answered_yet(update, context):
+    if await is_previous_message_not_answered_yet(update):
         return
     user_id = update.message.from_user.id
-    async with user_semaphores[user_id]:
+    async with USER_SEMAPHORES[user_id]:
         task = asyncio.create_task(
             message_handle_fn(
                 update=update,
@@ -152,7 +147,7 @@ async def message_handler(
                 user_id=user_id,
             )
         )
-        user_tasks[user_id] = task
+        USER_TASKS[user_id] = task
         try:
             await task
         except asyncio.CancelledError:
@@ -160,5 +155,5 @@ async def message_handler(
         else:
             pass
         finally:
-            if user_id in user_tasks:
-                del user_tasks[user_id]
+            if user_id in USER_TASKS:
+                del USER_TASKS[user_id]
